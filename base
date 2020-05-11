@@ -1,0 +1,80 @@
+#include <OneWire.h>
+
+#include <DallasTemperature.h>
+#include <OneWire.h>
+
+
+
+#define HumiP A0
+#define LuxP A1
+#define TemP 2
+
+#define LED 12   //on off 
+#define LED_state 11   //빛 세기
+
+#define PumP 8  //on off
+#define PumP_speed 9 //모터 세기
+
+
+OneWire dt(TemP);
+DallasTemperature sensors(&dt);
+
+
+void setup() {
+  
+  Serial.begin(9600);
+
+  
+  pinMode(HumiP,INPUT);
+  pinMode(LuxP,INPUT); 
+  pinMode(TemP,INPUT); 
+  
+  pinMode(LED,INPUT); 
+  pinMode(LED_state,INPUT); 
+  
+  pinMode(PumP,INPUT); 
+  pinMode(PumP_speed,INPUT); 
+
+
+  //LED 켜기
+  analogWrite(LED_state,20);
+  digitalWrite(LED,HIGH);
+ 
+}
+
+void loop() {
+  
+  
+  
+}
+
+
+
+byte getHumidity()  //토양수분 0~100까지 출력(일반 물70, 소금물85, 공기 0)
+{
+   return (100-map(analogRead(HumiP),0,1023,0,100));
+}
+
+float getTemperature() //소수점 2자리까지 실제 온도 출력
+{
+   sensors.requestTemperatures();
+   return sensors.getTempCByIndex(0);
+}
+
+byte getLux() //조도량 출력(0~100)
+{
+   return (100-map(analogRead(LuxP),0,1023,0,100));
+}
+
+void WaterPump(byte time) // time [ms] 만큼 펌프 가동
+{
+  analogWrite(PumP_speed,255); //펌프세기 100(0~100);
+  digitalWrite(PumP,HIGH);
+  delay(time*100);
+  digitalWrite(PumP,LOW);
+}
+
+void Turn_LED_Light(byte a) //Led 밝기 조절(0~255);
+{
+  analogWrite(LED_state,a);
+}
