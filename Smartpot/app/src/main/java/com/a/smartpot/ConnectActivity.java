@@ -15,7 +15,7 @@ import app.akexorcist.bluetotohspp.library.BluetoothSPP;
 import app.akexorcist.bluetotohspp.library.BluetoothState;
 import app.akexorcist.bluetotohspp.library.DeviceList;
 
-public class BluetoothActivity extends AppCompatActivity {
+public class ConnectActivity extends AppCompatActivity {
 
     public BluetoothSPP bt;
     public static Context context;
@@ -24,8 +24,7 @@ public class BluetoothActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         context=this;
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.bluetooth);
-
+        setContentView(R.layout.connect);
         bt = new BluetoothSPP(this); //Initializing
 
         if (!bt.isBluetoothAvailable()) { //블루투스 사용 불가
@@ -37,7 +36,7 @@ public class BluetoothActivity extends AppCompatActivity {
 
         bt.setOnDataReceivedListener(new BluetoothSPP.OnDataReceivedListener() { //데이터 수신
             public void onDataReceived(byte[] data, String message) {
-                Toast.makeText(BluetoothActivity.this, message, Toast.LENGTH_SHORT).show();
+                Toast.makeText(ConnectActivity.this, message, Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -46,8 +45,6 @@ public class BluetoothActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext()
                         , "Connected to " + name + "\n" + address
                         , Toast.LENGTH_SHORT).show();
-                Intent intent=new Intent(BluetoothActivity.this, FlowerActivity.class);
-                startActivity(intent);
             }
 
             public void onDeviceDisconnected() { //연결해제
@@ -61,8 +58,8 @@ public class BluetoothActivity extends AppCompatActivity {
             }
         });
 
-        Button mainbutton=(Button)findViewById(R.id.main_button); //연결시도
-        mainbutton.setOnClickListener(new View.OnClickListener() {
+        Button btnConnect = findViewById(R.id.btnConnect); //연결시도
+        btnConnect.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 if (bt.getServiceState() == BluetoothState.STATE_CONNECTED) {
                     bt.disconnect();
@@ -74,6 +71,10 @@ public class BluetoothActivity extends AppCompatActivity {
         });
     }
 
+    public void onDestroy() {
+        super.onDestroy();
+        bt.stopService(); //블루투스 중지
+    }
 
     public void onStart() {
         super.onStart();
@@ -84,10 +85,19 @@ public class BluetoothActivity extends AppCompatActivity {
             if (!bt.isServiceAvailable()) {
                 bt.setupService();
                 bt.startService(BluetoothState.DEVICE_OTHER); //DEVICE_ANDROID는 안드로이드 기기 끼리
+                setup();
             }
         }
     }
 
+    public void setup() {
+        Button btnSend = findViewById(R.id.btnSend); //데이터 전송
+        btnSend.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                bt.send("Text", true);
+            }
+        });
+    }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -99,6 +109,7 @@ public class BluetoothActivity extends AppCompatActivity {
             if (resultCode == Activity.RESULT_OK) {
                 bt.setupService();
                 bt.startService(BluetoothState.DEVICE_OTHER);
+                setup();
             } else {
                 Toast.makeText(getApplicationContext()
                         , "Bluetooth was not enabled."
@@ -106,7 +117,6 @@ public class BluetoothActivity extends AppCompatActivity {
                 finish();
             }
         }
-
-
     }
+
 }

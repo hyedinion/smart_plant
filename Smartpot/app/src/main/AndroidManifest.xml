@@ -25,6 +25,10 @@
         <activity android:name=".GuideActivity" />
         <activity android:name=".SettingsActivity" />
         <activity android:name=".FlowerActivity" />
+        <activity android:name=".ConnectActivity" />
     </application>
+
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
 </manifest>

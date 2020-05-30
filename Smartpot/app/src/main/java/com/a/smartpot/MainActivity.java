@@ -11,6 +11,11 @@ import androidx.appcompat.widget.Toolbar;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import app.akexorcist.bluetotohspp.library.BluetoothSPP;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,10 +30,36 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                ((BluetoothActivity)BluetoothActivity.context).bt.stopService();
                 Intent intent=new Intent(MainActivity.this, BluetoothActivity.class);
                 startActivity(intent);
             }
         });
+
+        final TextView tv1 = (TextView)findViewById(R.id.textView1);
+        final TextView tv2 = (TextView)findViewById(R.id.textView2);
+        final TextView tv3 = (TextView)findViewById(R.id.textView3);
+
+        ((BluetoothActivity)BluetoothActivity.context).bt.setOnDataReceivedListener(new BluetoothSPP.OnDataReceivedListener() { //데이터 수신
+            public void onDataReceived(byte[] data, String message) {
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                String[] array = message.split(" ");
+                for(int i =0; i<array.length; i++){
+                    if (i==0){
+                        tv1.setText("온도: "+array[0]);
+                    }
+                    else if (i==1){
+                        tv2.setText("조도: "+array[1]);
+                    }
+                    else {
+                        tv3.setText("습도: "+array[2]);
+                    }
+                }
+            }
+        });
+
+
+
     }
 
     @Override

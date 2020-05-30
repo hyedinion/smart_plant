@@ -17,6 +17,10 @@ public class FlowerActivity extends AppCompatActivity {
         button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //안시리움
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("20", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("5000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("65", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -25,6 +29,10 @@ public class FlowerActivity extends AppCompatActivity {
         button2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //솔레이롤리아
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("28", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("5000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("65", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -33,6 +41,10 @@ public class FlowerActivity extends AppCompatActivity {
         button3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //꽃베고니아
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("23", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("7000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("75", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -41,6 +53,10 @@ public class FlowerActivity extends AppCompatActivity {
         button4.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //몬스테라
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("18", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("5000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("75", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -49,6 +65,10 @@ public class FlowerActivity extends AppCompatActivity {
         button5.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //러브체인
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("18", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("5000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("35", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -57,6 +77,10 @@ public class FlowerActivity extends AppCompatActivity {
         button6.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                //드라세나 산데리아나
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("23", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("4000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("55", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
@@ -65,6 +89,9 @@ public class FlowerActivity extends AppCompatActivity {
         button7.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("20", true);//온도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("5000", true);//조도
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("50", true);//습도
                 Intent intent=new Intent(FlowerActivity.this, MainActivity.class);
                 startActivity(intent);
             }
