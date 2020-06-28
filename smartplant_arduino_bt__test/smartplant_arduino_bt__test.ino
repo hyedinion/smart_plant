@@ -2,22 +2,26 @@
 
 #include <DallasTemperature.h>
 #include <OneWire.h>
-
+#include <SoftwareSerial.h>
 
 //--------------------------------------------아두이노 설정
-#define HumiP A0                      //
-#define LuxP A1                       //
-#define TemP 2
+#define RX 3            //BT
+#define TX 2
 
-#define LED 12   //on off 
-#define LED_state 11   //빛 세기
+#define HumiP A0                       
+#define LuxP A1                       
+#define TemP 4
 
-#define PumP 8  //on off
-#define PumP_speed 9 //모터 세기
+#define LED 12          //on off 
+#define LED_state 11    //빛 세기
+
+#define PumP 8          //on off
+#define PumP_speed 9    //모터 세기
 #define defaltsetHum 20
 #define defaltsetLux 70
 
-OneWire dt(TemP);                     
+SoftwareSerial BTSerial(TX,RX); //BT
+OneWire dt(TemP);             //temp          
 DallasTemperature sensors(&dt);   
 extern volatile unsigned long timer0_millis;
 unsigned long timer = 0;                                
@@ -41,10 +45,6 @@ class Value_Data
   {
     
   }
-//  Value_Data(byte a,byte b)
-//  {
-  //  setHumidity = a; setLux =b; emptyTank = false;
-  //}
   byte getHumidity()  //현재토양수분 0~100까지 출력(일반 물70, 소금물85, 공기 0)                           //
   {                                                                                              //
     return (100-map(analogRead(HumiP),0,1023,0,100));
@@ -90,6 +90,8 @@ class Value_Data
 byte Value_Data::setHumidity = defaltsetHum;
 byte Value_Data::setLux = defaltsetLux;
 bool Value_Data::emptyTank = false;
+
+
 
 class Control_Humidity{
   private:
@@ -266,7 +268,22 @@ class Control_Lux
     //조도가 설정값이 될때까지 loop돌리기
     while(Data.get_setLux()-3 >= Data.getLux() || Data.get_setLux()+3 <= Data.getLux())
     {
-      if(Data.get_setLux()-3 >= Data.getLux())// 조도량이 적을때
+        if (Data.get_setLux()-7>=Data.getLux() && LED_emiting_value <= 251) // 조도량이 과도하게 적을때
+        { 
+          Serial.print("설정 값보다 받는 조도량이 적습니다 ");
+          if(LED_emiting_value==255)
+          {
+            Serial.println("LED가 최대 밝기지만 설정값보다 조도량이 작습니다");
+            break;
+          }
+          else
+          {
+            LED_emiting_value+=4;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print("LED 밝기를 +4 합니다");
+          }
+        }
+       else if(Data.get_setLux()-3 >= Data.getLux())// 조도량이 적을때
         { 
           Serial.print("설정 값보다 받는 조도량이 적습니다 ");
           if(LED_emiting_value==255)
@@ -280,9 +297,24 @@ class Control_Lux
             Set_LED_Light(LED_emiting_value);
             Serial.print("LED 밝기를 +1 합니다");
           }
-          
         }
-        else// 조도가 많을때
+
+        else if (Data.get_setLux()+7 <= Data.getLux() && LED_emiting_value >= 4) // 조도가 과도하게 많을때
+        {
+           if(LED_emiting_value==0)
+          { Serial.println("");
+            Serial.println("LED가 최소 밝기지만 설정값보다 조도량이 많습니다");
+            break;
+          }
+          else
+          {
+            LED_emiting_value-=4;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print("LED 밝기를 -4 합니다");
+          }
+        }
+        
+        else if (Data.get_setLux()+3 <= Data.getLux())// 조도가 많을때
         {
            if(LED_emiting_value==0)
           { Serial.println("");
@@ -296,7 +328,9 @@ class Control_Lux
             Serial.print("LED 밝기를 -1 합니다");
           }
         }
-    } Serial.println("");
+        else Serial.print("Error\n");
+    } 
+    Serial.println("");
   }
 
   Serial.print("LED_emiting_value: ");   Serial.println(LED_emiting_value);
@@ -323,12 +357,12 @@ class Delay_Loop_Time
           byte preHum;
           float preTemp;
           
+        
           Value_Data Data;
 public:
-        byte Looptime[8] = {30,24,24,18,18,12,6,6}; //1~5분 delay
-        byte Tempset = 7;
-
-        
+    byte Looptime[8] = {6,6,6,6,6,6,6,6}; //1~5분 delay
+     byte Tempset = 7;
+    
     Delay_Loop_Time(){
       
     }
@@ -341,19 +375,19 @@ public:
       Tempset = 7;
     }
           
-   public: void delaytime()
+ /*  public: void delaytime()
    {
      unsigned long times = (unsigned long)Looptime[Tempset]*10000;
      Serial.println("<<delaytime 시작>>");
      Serial.print("Looptime[Tempset]: ");Serial.println(Looptime[Tempset]);
      Serial.print(times);Serial.println("ms 만큼 아두이노가 정지됩니다");
 
-    
-     //delay(times);
-     //Serial.println("<<delaytime 끝>>");
+     delay(times);
+     Serial.println("<<delaytime 끝>>");
      Serial.println("");Serial.println("");
 
-   }
+   }*/
+   
    void calculate_temp_point() //0~8까지 존재 point 가 클수록 변화량이 높다는뜻
    {  
     
@@ -407,7 +441,7 @@ public:
 
 
 //----------------class 선언-----------------------------------------------------------------
- Value_Data Data;
+Value_Data Data;
 
 Control_Humidity Hum(Data);
 Delay_Loop_Time looptime(Data,Data.getLux(),Data.getHumidity(),Data.getTemperature());
@@ -420,7 +454,7 @@ void setup() {
   // put your setup code here, to run once:
 
   Serial.begin(9600);
-
+  BTSerial.begin(9600);
   
   pinMode(HumiP,INPUT);
   pinMode(LuxP,INPUT); 
@@ -437,35 +471,164 @@ void setup() {
   analogWrite(LED_state,20);
   digitalWrite(LED,HIGH); 
 
-
- //최초 동작
+  //최초 동작
    looptime.calculate_temp_point();
 
  
    Hum.maintain_hum();  
    Lux.maintain_lux();
 
-   looptime.delaytime();
+//   looptime.delaytime();
+  // delay(10000*looptime.Looptime[looptime.Tempset]);
    timer = millis();
+ 
+  Serial.print(10*looptime.Looptime[looptime.Tempset]);Serial.println("[s] 뒤에 동작");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-   if( timer+10000*looptime.Looptime[looptime.Tempset]<millis())
+
+   bluetooth_input_output();
+    
+   if( timer+(unsigned long)10000*looptime.Looptime[looptime.Tempset]<millis())
    {
-   looptime.calculate_temp_point();
+      Serial.println("-----------------------------------------------------");
+      looptime.calculate_temp_point();
+       
+      Hum.maintain_hum();   
+      Lux.maintain_lux();
+      
 
  
-   Hum.maintain_hum();  
-   Lux.maintain_lux();
+      //looptime.delaytime();
 
- 
-  // looptime.delaytime();
-
- //  Data.set_setHum(50);
-   looptime.delaytime();
-   timer = millis();
+      //Data.set_setHum(50);
+      timer = millis();
+      Serial.print(10*looptime.Looptime[looptime.Tempset]);Serial.println("[s] 뒤에 동작");
+      Serial.println("-----------------------------------------------------");
    }
-   delay(10000);
+   
+   delay(5000);
+   
+   
 
+}
+
+void bluetooth_input_output()
+{
+  String value = "";
+  char code;
+  if(BTSerial.available())
+  {
+    // Serial.println("첫 if문");
+    code = BTSerial.read();
+    if(code == '0')//------------------------------------첫번째 인자 '1' input
+    {
+      Serial.println("BT at 0 ");
+      delay(10);
+      code = BTSerial.read(); //공백받기
+      int valueNumber = 1; //3번째 인자까지만 받기 위해
+      delay(15);
+      while(BTSerial.available())
+      {
+        code = BTSerial.read();
+        if(code == ' ')//공백을 받으면
+        {
+          if(valueNumber==1)
+          {
+               //Serial.print("valueNumber==1-->");Serial.println(value);
+             Data.set_setHum(value.toInt());// hum = value.toInt();
+              value = "";
+              valueNumber++;
+          }
+          else if(valueNumber==2) 
+          {
+          //  Serial.print("valueNumber==2-->");Serial.println(value);
+             Data.set_setLux(value.toInt()); //lux = value.toInt();  
+              value = "";
+           // code = BTSerial.read();//"\n"제거 --------------------------------------------------수정
+              break;//연속된 통신 제거
+          }
+        }
+        else
+        {
+           Serial.print(" value+=code;");
+          value+=code;
+          Serial.println(value);
+        }
+        delay(10);//문자 끊김 방지
+      }
+    }
+    else if(code == '1')//------------------------------------첫번째 인자 '0' output
+    {
+      while(BTSerial.available())
+      {
+           Serial.print(code);
+            Serial.println("-->문자제거");
+            code = BTSerial.read();
+            delay(10);
+      }
+       BTSerial.print((int)Data.getTemperature());
+       //    Serial.print(code);
+    //  code = BTSerial.read();//엔터빼기
+     // Serial.print(code);
+    
+     BTSerial.print(" ");
+
+     BTSerial.print(Data.getLux());
+     BTSerial.print(" ");
+
+   //  BTSerial.print(Data.getemptyTank());
+    // BTSerial.print(" ");
+     
+    BTSerial.println(Data.getHumidity());
+    
+    // print(" ");
+     
+    }
+    else if(code == '2')//------------------------------------첫번째 인자 '0' output
+    {
+      while(BTSerial.available())
+      {
+           Serial.print(code);
+            Serial.println("-->문자제거");
+            code = BTSerial.read();
+            delay(10);
+      }
+       //BTSerial.print((int)Data.setTemperature());
+       //    Serial.print(code);
+    //  code = BTSerial.read();//엔터빼기
+     // Serial.print(code);
+    
+    // BTSerial.print(" ");
+
+     BTSerial.print(Data.get_setLux());
+     BTSerial.print(" ");
+
+   //  BTSerial.print(Data.getemptyTank());
+    // BTSerial.print(" ");
+     
+    BTSerial.println(Data.get_setHum());
+    
+    // print(" ");
+     
+    }
+    else{
+      
+     Serial.println("알수 없는 명령입니다.");
+      delay(10);
+     while(BTSerial.available())
+      {
+           Serial.print(code);
+            Serial.println("-->문자제거");
+            code = BTSerial.read();
+            delay(10);
+      }
+    // return 0;
+    }
+   Serial.println("Lux: "); Serial.println(Data.get_setLux());
+   Serial.println("Hum: ");Serial.println(Data.get_setHum());
+  }
+   
+   
 }
