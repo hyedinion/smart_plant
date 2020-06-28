@@ -24,10 +24,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
+        ((BluetoothActivity)BluetoothActivity.context).bt.send("1", true);
         setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
+        final TextView tv1 = (TextView)findViewById(R.id.textView1);
+        final TextView tv2 = (TextView)findViewById(R.id.textView2);
+        final TextView tv3 = (TextView)findViewById(R.id.textView3);
+        tv1.setText("온도: 로딩중");
+        tv2.setText("조도: 로딩중");
+        tv3.setText("습도: 로딩중");
+
+        FloatingActionButton fab_exit = findViewById(R.id.fab);
+        FloatingActionButton fab_refresh = findViewById(R.id.fab2);
+
+        fab_exit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 ((BluetoothActivity)BluetoothActivity.context).bt.stopService();
@@ -36,9 +46,18 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        final TextView tv1 = (TextView)findViewById(R.id.textView1);
-        final TextView tv2 = (TextView)findViewById(R.id.textView2);
-        final TextView tv3 = (TextView)findViewById(R.id.textView3);
+        fab_refresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                tv1.setText("온도: 로딩중");
+                tv2.setText("조도: 로딩중");
+                tv3.setText("습도: 로딩중");
+                ((BluetoothActivity)BluetoothActivity.context).bt.send("1", true);
+
+            }
+        });
+
+
 
         ((BluetoothActivity)BluetoothActivity.context).bt.setOnDataReceivedListener(new BluetoothSPP.OnDataReceivedListener() { //데이터 수신
             public void onDataReceived(byte[] data, String message) {
@@ -60,7 +79,15 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+
+
     }
+//    public void onStart() {
+//        super.onStart();
+//        tv1.setText("온도: 로딩중");
+//        tv2.setText("조도: 로딩중");
+//        tv3.setText("습도: 로딩중");
+//    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

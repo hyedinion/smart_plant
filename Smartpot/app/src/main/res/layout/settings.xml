@@ -15,25 +15,17 @@
         android:id="@+id/textview2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="100dp"
         android:text="숫자만 입력해 주세요"
         android:textSize="20dp"/>
 
-    <EditText
-        android:id="@+id/edit1"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="100dp"
-        android:layout_marginBottom="20dp"
-        android:hint="온도: "
-        />
     <EditText
         android:id="@+id/edit2"
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_marginLeft="100dp"
         android:layout_marginBottom="20dp"
-        android:hint="조도: "
+        android:hint="습도: 기존 data 로딩중"
         />
     <EditText
         android:id="@+id/edit3"
@@ -41,7 +33,7 @@
         android:layout_height="wrap_content"
         android:layout_marginLeft="100dp"
         android:layout_marginBottom="20dp"
-        android:hint="습도: "
+        android:hint="조도: 기존 data 로딩중"
         />
     <Button
         android:id="@+id/button"
