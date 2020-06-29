@@ -1,0 +1,682 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
+
+#include <SoftwareSerial.h>
+
+//--------------------------------------------아두이노 설정
+#define RX 3            //BT
+#define TX 2
+
+#define HumiP A0                       
+#define LuxP A1                       
+#define TemP 4
+
+#define LED 12          //on off 
+#define LED_state 11    //빛 세기
+
+#define PumP 8          //on off
+#define PumP_speed 9    //모터 세기
+#define defaltsetHum 40
+#define defaltsetLux 0
+
+#define Input_BT '0'
+#define Output_BT_Get '1'
+#define Output_BT_Set '2'
+
+SoftwareSerial BTSerial(TX,RX); //BT
+OneWire dt(TemP);             //temp          
+DallasTemperature sensors(&dt);   
+extern volatile unsigned long timer0_millis;
+unsigned long timer = 0;                                
+//-------------------------------------------------------
+
+
+
+//-------------------class-----------------------------
+
+class Value_Data
+{
+  private:
+             static byte  setHumidity ; // 사용자가 설정한 데이터값
+             static byte  setLux ;
+             static bool  emptyTank; // 물탱크가 비어있는지 여부
+
+  
+  public:
+  Value_Data()
+  {
+    
+  }
+  byte getHumidity()  //현재토양수분 0~100까지 출력(일반 물70, 소금물85, 공기 0)
+  { 
+    byte i;
+    byte arr[6];
+    for(i=0;i<6;i++)
+    {
+      arr[i] = (100-map(analogRead(HumiP),0,1023,0,100));
+      delay(300);
+    }
+    return (arr[0]+arr[1]+arr[2]+arr[3]+arr[4]+arr[5])/6;
+  }
+  
+  byte get_setHum() //get 설정수분
+  {
+    return setHumidity;
+  }
+  void set_setHum(byte a)  //set 설정수분
+  {              
+    setHumidity = a;
+  }
+
+  byte getLux() //현재조도량 출력(0~100)
+  {
+   return (100-map(analogRead(LuxP),0,1023,0,100));
+  }
+  void set_setLux(byte a){ //set 설정조도량
+        setLux = a;
+  }
+  byte get_setLux(){ //get 설정조도량
+       return setLux;
+  }
+
+  double getTemperature() //소수점 2자리까지 실제 온도 출력                                           //
+  {
+    
+   sensors.requestTemperatures();
+   return sensors.getTempCByIndex(0);                                                         //
+  }
+
+  bool getemptyTank() // 물탱크가 비어있는지 여부
+  {
+    return emptyTank;
+  }
+
+  void setemptyTank(bool a) // set 물탱크의 여부
+  {
+    emptyTank = a;
+  }
+
+ 
+  
+};
+byte Value_Data::setHumidity = defaltsetHum;
+byte Value_Data::setLux = defaltsetLux;
+bool Value_Data::emptyTank = false;
+
+//-------------------------------------------------------------------------------------------
+
+class Control_Humidity{
+  private:
+          Value_Data Data;
+          
+          byte At_starting_gap_hum;
+          byte At_starting_Humidity;
+          byte delaycount ;//물을 주고 공급 확인을 확인하는 카운트
+          unsigned long deadline_Time ; //60초뒤 수분이 잘 전달 되었는지 확인함
+          unsigned short Max_wateringTime ;
+          bool State;                 //현재 물을 공급하는 알고리즘이 실행되고 있는지
+
+          unsigned short wateringTime;   //물 펌프 가동시간 = 물주는량// 단위: wateringTime*|현재습도-설정습도|
+                                                                  // ex) wateringTime*2 = 수분2을 올리기위한 급수 시간
+          byte warr[100]; // 습도 데이터 리스트
+          int warrcount=0; // 데이터량
+
+       
+public:
+  Control_Humidity(){
+    
+  }
+  Control_Humidity(Value_Data a){
+    Data = a;
+    delaycount = 0;
+    deadline_Time = 480000; //물을 주고 최소 8분뒤 확인
+    Max_wateringTime = 10000;
+    State = false;
+    wateringTime = 112;
+}
+
+
+
+public: void maintain_hum()// 물공급 함수
+{
+    Serial.println(F("<<maintain_hum 실행>>"));
+    Serial.print(F("현재 수분-->"));Serial.println(Data.getHumidity());
+    Serial.print(F("설정 수분-->"));Serial.println(Data.get_setHum());
+    Serial.print(F("설정 펌프 가동시간-->"));Serial.println(wateringTime);
+    Serial.print(F("현재 milli(): "));Serial.print(millis()); Serial.print(F("  stste:"));Serial.print(State);//Serial.print(F("  물탱크: "));Serial.println(Data.getemptyTank());
+    Serial.println();
+    
+    if(warrcount<100)
+    {
+    warr[warrcount] = Data.getHumidity();
+    warrcount++;
+    int i;
+    
+    if(warrcount%6 == 0)
+    {
+      Serial.print(F("list data("));Serial.print(warrcount);Serial.print(F("): "));
+      for(i=0;i<warrcount;i++)
+      {
+       Serial.print(warr[i]);
+       Serial.print(" ");
+      }
+      Serial.print("\n");
+    }
+    }
+
+    
+   if(Data.get_setHum()-Data.getHumidity()>6 && (State == false)) // 처음 현재습도가 설정습도에 미도달하고 
+   {
+      Serial.print(F("처음으로 수분이 떨어져 물공급 -->(wateringTime*습도차) = ")); Serial.print(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));
+      Serial.println(F(" ms만큼 공급")); 
+                                           
+      At_starting_Humidity = Data.getHumidity();//물을 주기 직전 습도 저장
+                                              // 처음 물을 주기전 습도 (다음 loop에서 습도가 At_starting_Humidity 보다 작으면 물공급이 잘 되지 않은것)
+
+       At_starting_gap_hum = abs(Data.getHumidity()-Data.get_setHum()); //(설정수분 - 현재수분) 현재 수분 차이 재입력         
+      
+      //물공급
+      WaterPump(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));    //(-getHumidity()+seyHum)만큼 습도가 증가하기위해선 
+                                                                               //(습도차이)*wateringTime(습도 1이 올라가기위한 필요한시간)초만큼 펌프가 가동되야함
+      timer0_millis= 0;// 밀리 초기화-->x 분뒤에 수분 피드백 받기위해
+      Serial.print(F("타이머 초기화 확인 -->"));Serial.println(millis());
+
+      State = true;
+   }
+
+   
+   else if(millis()>deadline_Time&&(State == true))//처음 물을 주고 deadline_time 분이 지났을때
+   {
+       
+       delaycount++;
+       Serial.print(F("물공급후 확인 "));Serial.print(delaycount);Serial.println(F("번째 확인"));
+      
+       if(At_starting_Humidity-Data.getHumidity()>=-1 )//물을 주고도 설정습도까지 오르지 않을때 오차 허용
+       { 
+          Serial.println(F("습도가 오르지 않음"));
+          if(delaycount>5)//물을 5번이나 공급하고도 습도가 내려갈때
+          {
+            Data.setemptyTank(true);
+            Serial.println(F("물탱크에 물이 없거나 토양의 최대 습도입니다"));
+          }
+         
+          
+          else
+          {
+            if(At_starting_gap_hum*wateringTime<4000)
+            {
+             wateringTime = wateringTime+70;
+             Serial.print(F("물 주는 시간 증가 (+70)-->"));Serial.println(wateringTime);
+            }
+             Data.setemptyTank(false);   
+          }
+          
+         Serial.print(F("물공급 --> wateringTime*습도차 =")); Serial.println(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));
+         Serial.println(F(" ms만큼 공급"));
+       //  At_starting_Humidity = Data.getHumidity(); 
+        // At_starting_gap_hum = abs(Data.getHumidity()-Data.get_setHum());
+         WaterPump(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));
+       }
+   
+       else// 습도가 증가 했을때
+       {
+        Serial.println(F("습도 증가"));
+         Data.setemptyTank(false);
+
+         if(abs(Data.get_setHum()-Data. getHumidity())<3)//+-2오차일때 설정습도에 정확히 도달시
+         {
+            Serial.println(F("습도가 정확히 오름"));
+            State = false; //물공급 알고리즘 끝을 전달
+            delaycount = 0;
+         }
+             
+         else if(Data.get_setHum()-Data.getHumidity()>0) //설정 습도까지는 미도달 했을때
+         {
+          Serial.println(F("습도가 정확히는 미도달"));
+         /* wateringTime =  wateringTime*1.4;
+
+          Serial.print("물공급함 -->"); Serial.println(wateringTime);
+          WaterPump(wateringTime);*/
+           wateringTime =  wateringTime*((double)( At_starting_gap_hum)/abs(At_starting_Humidity-Data.getHumidity()));  //물주는량*(처음 수분차/현재 수분차)
+           Serial.print(F("이전 습도차: "));  Serial.println(At_starting_gap_hum);
+           At_starting_gap_hum = abs(Data.getHumidity()-Data.get_setHum()); //(설정수분 - 현재수분) 현재 수분 차이 재입력 
+           Data.setemptyTank(false);
+             
+           Serial.print(F("실제 변화된 습도차: "));  Serial.println(abs(At_starting_Humidity-Data.getHumidity()));
+           Serial.print(F("물 주는 시간 증가 -->"));Serial.println(wateringTime);
+          
+           Serial.print(F("물공급 -->(wateringTime*습도차) = ")); Serial.println(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));
+           Serial.println(F(" ms만큼 공급")); 
+           At_starting_Humidity = Data.getHumidity();//물을 주기 직전 습도 저장
+         WaterPump(wateringTime*abs(Data.get_setHum()-Data.getHumidity()));
+         
+           
+         }
+         else
+         {
+          Serial.println(F("습도가 설정값을 오버함"));
+         /* wateringTime =  wateringTime*0.8;*/
+         Serial.print(F("이전 습도차: "));  Serial.println(At_starting_gap_hum);
+         Serial.print(F("실제 변화된 습도차: "));  Serial.println(abs(At_starting_Humidity-Data.getHumidity()));
+           wateringTime =  wateringTime*((double)( At_starting_gap_hum)/abs(At_starting_Humidity-Data.getHumidity()));  //물주는량*(처음 수분차/현재 수분차)
+             Data.setemptyTank(false);   
+             Serial.print(F("물 주는 시간 감소 -->"));Serial.println(wateringTime);
+         
+          State = false;//물공급 알고리즘 끝을 전달
+          delaycount = 0;
+         }
+
+         
+       }
+      
+     
+      
+       timer0_millis= 0;
+       
+       
+       
+    }
+
+     
+    
+
+
+    Serial.print(F("현재 수분-->"));Serial.println(Data.getHumidity());
+    Serial.print(F("설정 수분-->"));Serial.println(Data.get_setHum());
+    Serial.print(F("설정 펌프 가동시간-->"));Serial.println(wateringTime);
+    Serial.println(F("<<maintain_hum 종료>>\n\n"));
+   
+       
+
+}
+
+
+private:  void WaterPump(unsigned int times) // time [ms] 만큼 펌프 가동                                            //
+{
+  times += 1000; // 호수 길이통과 시간고려
+  Serial.print(F("호수길이를 고려하여 가동시간+1.0 초 추가: "));Serial.println(times);
+  if(wateringTime>Max_wateringTime){
+    wateringTime = Max_wateringTime;
+     Serial.print(F("wateringtime이 상환값을 초과하여 변경--->"));Serial.println(wateringTime);
+  }
+  analogWrite(PumP_speed,105); //펌프세기 100(0~255);                                           //
+  digitalWrite(PumP,HIGH);
+  delay(times);
+  digitalWrite(PumP,LOW);                                                                     //
+}
+
+
+
+};
+
+
+
+class Control_Lux
+{
+  private: Value_Data Data;
+           bool LED_on_off;
+           byte LED_emiting_value;
+  public:
+  Control_Lux(Value_Data a)
+  {
+    Data = a;
+    LED_on_off = true;
+    LED_emiting_value = 30;
+  }
+
+  public: void maintain_lux(){
+
+  Serial.println(F("<<maintain_lux 실행>>"));
+  Serial.print(F("LED_emiting_value: "));   Serial.println(LED_emiting_value);
+  Serial.print(F("현재 조도: ")); Serial.println(Data.getLux());
+  Serial.print(F("설정조도: ")); Serial.println(Data.get_setLux());
+
+  if(Data.get_setLux()-3 >= Data.getLux() || Data.get_setLux()+3 <= Data.getLux())
+  {
+    Serial.println(F("설정 값을 벚어나 조도를 재설정합니다"));
+
+    //조도가 설정값이 될때까지 loop돌리기
+    while(Data.get_setLux()-3 >= Data.getLux() || Data.get_setLux()+3 <= Data.getLux())
+    {
+        if (Data.get_setLux()-7>=Data.getLux() && LED_emiting_value <= 251) // 조도량이 과도하게 적을때
+        { 
+          Serial.print(F("설정 값보다 받는 조도량이 적습니다 "));
+          if(LED_emiting_value==255)
+          {
+            Serial.println(F("LED가 최대 밝기지만 설정값보다 조도량이 작습니다"));
+            break;
+          }
+          else
+          {
+            LED_emiting_value+=4;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print(F("LED 밝기를 +4 합니다, "));
+          }
+        }
+       else if(Data.get_setLux()-3 >= Data.getLux())// 조도량이 적을때
+        { 
+          Serial.print(F("설정 값보다 받는 조도량이 적습니다 "));
+          if(LED_emiting_value==255)
+          {
+            Serial.println(F("LED가 최대 밝기지만 설정값보다 조도량이 작습니다"));
+            break;
+          }
+          else
+          {
+            LED_emiting_value++;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print(F("LED 밝기를 +1 합니다, "));
+          }
+        }
+
+        else if (Data.get_setLux()+7 <= Data.getLux() && LED_emiting_value >= 4) // 조도가 과도하게 많을때
+        {
+           if(LED_emiting_value==0)
+          {
+            Serial.println(F("\nLED가 최소 밝기지만 설정값보다 조도량이 많습니다"));
+            break;
+          }
+          else
+          {
+            LED_emiting_value-=4;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print(F("LED 밝기를 -4 합니다"));
+          }
+        }
+        
+        else if (Data.get_setLux()+3 <= Data.getLux())// 조도가 많을때
+        {
+           if(LED_emiting_value==0)
+          {
+            Serial.println(F("\nLED가 최소 밝기지만 설정값보다 조도량이 많습니다"));
+            break;
+          }
+          else
+          {
+            LED_emiting_value--;
+            Set_LED_Light(LED_emiting_value);
+            Serial.print(F("LED 밝기를 -1 합니다"));
+          }
+        }
+        else Serial.print(F("Error\n"));
+    } 
+    Serial.println("");
+  }
+
+  Serial.print(F("LED_emiting_value: "));   Serial.println(LED_emiting_value);
+  Serial.print(F("현재 조도: ")); Serial.println(Data.getLux());
+  Serial.print(F("설정 조도: ")); Serial.println(Data.get_setLux());
+  Serial.println(F("<<maintain_lux 종료>>\n\n"));
+ 
+  
+ }
+  
+  private: void Set_LED_Light(byte a) //Led 밝기 조절(0~255);
+{
+  analogWrite(LED_state,a);
+}
+};
+
+
+
+
+class Delay_Loop_Time
+{
+  private:
+          byte preLux=0;
+          byte preHum=0;
+          float preTemp=0;
+          
+        
+          Value_Data Data;
+public:
+    byte Looptime[8] = {36,30,24,18,18,12,6,6}; //1~6분 delay
+     byte Tempset = 7;
+    
+    Delay_Loop_Time(){
+      
+    }
+    Delay_Loop_Time(Value_Data a)
+    {
+      Data = a;
+    }
+          
+   
+   void calculate_temp_point() //0~8까지 존재 point 가 클수록 변화량이 높다는뜻
+   {  
+    
+    //변화량
+      byte variation_Lux;
+      byte variation_Hum;
+      double variation_Temp;
+
+      byte point;
+      Serial.println(F("<<calculate point 실행>>"));
+      Serial.print(F("이전 loop 습도: "));Serial.print(preHum);
+      Serial.print(F(" 이전 loop 조도: "));Serial.print(preLux);
+      Serial.print(F(" 이전 loop 온도: "));Serial.println(preTemp);
+       Serial.print(F("현재 loop 습도: "));Serial.print(Data.getHumidity());
+      Serial.print(F(" 현재 loop 조도: "));Serial.print(Data.getLux());
+      Serial.print(F(" 현재 loop 온도: "));Serial.println(Data.getTemperature());
+   
+
+      
+      
+      //변화량 계산
+      variation_Lux = abs(preLux-Data.getLux());
+      variation_Hum = abs(preHum-Data.getHumidity());
+      variation_Temp = abs(preTemp-Data.getTemperature());
+
+      //temp 포인트 계산
+      point = variation_Lux*2 + variation_Hum + (byte)(variation_Temp*20);
+      Serial.print(F("variation_Lux: "));Serial.print(variation_Lux);Serial.print(F(" variation_Hum: "));Serial.print(variation_Hum);Serial.print(F(" variation_Temp: "));Serial.println(variation_Temp);
+      Serial.print(F("point = variation_Lux*2 + variation_Hum + (byte)(variation_Temp*20) \n= "));Serial.println(point);
+      
+      point = point/(Looptime[Tempset]/6);// 분당 포인트 변화량
+      Serial.print(F("point = point/(Looptime[Tempset]/6) //분당 포인트 변화량 \n= "));Serial.println(point);
+      if(point >7)
+        {
+          Serial.print(F("최종 index point = "));Serial.println(point);
+          Serial.println(F("point 최댓 값(7) 넘어감 7 로변경"));
+          point = 7;
+          
+        }
+        Serial.print(F("point: "));Serial.println(point);
+        Serial.println(F("pre data들 현재 값으로 입력"));
+        preLux = Data.getLux();
+        preHum = Data.getHumidity();
+        preTemp = Data.getTemperature();
+
+      Serial.println(F("<<calculate point 종료>>\n\n "));
+     
+      Tempset = point;
+   }
+};
+
+
+
+//----------------class define-----------------------------------------------------------------
+Value_Data Data;
+
+Control_Humidity Hum(Data);
+Delay_Loop_Time looptime(Data);
+Control_Lux Lux(Data) ;
+
+
+
+
+void setup() {
+  // put your setup code here, to run once:
+  
+  Serial.begin(9600);
+  BTSerial.begin(9600);
+  
+  pinMode(HumiP,INPUT);
+  pinMode(LuxP,INPUT); 
+  pinMode(TemP,INPUT); 
+  
+  pinMode(LED,INPUT); 
+  pinMode(LED_state,INPUT); 
+  
+  pinMode(PumP,INPUT); 
+  pinMode(PumP_speed,INPUT); 
+
+
+  //LED 켜기
+  analogWrite(LED_state,20);
+  digitalWrite(LED,HIGH); 
+
+  //최초 동작
+   looptime.calculate_temp_point();
+
+ 
+   Hum.maintain_hum();  
+   Lux.maintain_lux();
+
+
+   timer = millis();
+ 
+  Serial.print(10*looptime.Looptime[looptime.Tempset]);Serial.println(F("[s] 뒤에 동작"));
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+   bluetooth_input_output();
+    
+   if( timer+(unsigned long)10000*looptime.Looptime[looptime.Tempset]<millis()) // delaytime, 다음 동작까지의 시간 확인
+   {
+      Serial.println(F("-----------------------------------------------------------------------"));
+     
+       
+      Hum.maintain_hum();   
+      Lux.maintain_lux();
+      
+
+      looptime.calculate_temp_point();
+
+      timer = millis();
+      Serial.print(10*looptime.Looptime[looptime.Tempset]);Serial.println("[s] 뒤에 동작");
+      Serial.println(F("-----------------------------------------------------------------------"));
+   }
+   
+   delay(5000);
+   
+   
+
+}
+
+void bluetooth_input_output()
+{
+  String value = "";
+  char code;
+  if(BTSerial.available())
+  {
+    // Serial.println("첫 if문");
+    code = BTSerial.read();
+    if(code == Input_BT)//------------------------------------첫번째 인자 '0' input
+    {
+      Serial.println("BT at 0 ");
+      delay(10);
+      code = BTSerial.read(); //공백받기
+      int valueNumber = 1; //3번째 인자까지만 받기 위해
+      delay(15);
+      while(BTSerial.available())
+      {
+        code = BTSerial.read();
+        if(code == ' ')//공백을 받으면
+        {
+          if(valueNumber==1)
+          {
+               //Serial.print("valueNumber==1-->");Serial.println(value);
+             Data.set_setHum(value.toInt());// hum = value.toInt();
+              value = "";
+              valueNumber++;
+          }
+          else if(valueNumber==2) 
+          {
+          //  Serial.print("valueNumber==2-->");Serial.println(value);
+             Data.set_setLux((value.toInt())/10); //lux = value.toInt();  
+              value = "";
+           // code = BTSerial.read();//"\n"제거 --------------------------------------------------수정
+              Hum.maintain_hum();   
+              Lux.maintain_lux();
+      
+
+          
+              break;//연속된 통신 제거
+          }
+        }
+        else
+        {
+           Serial.print(F(" value+=code;"));
+          value+=code;
+          Serial.println(value);
+        }
+        delay(10);//문자 끊김 방지
+      }
+    }
+    else if(code == Output_BT_Get)//------------------------------------첫번째 인자 '0' output
+    {
+      while(BTSerial.available())
+      {
+           Serial.print(code);
+            Serial.println("-->문자제거");
+            code = BTSerial.read();
+            delay(10);
+      }
+       BTSerial.print((int)Data.getTemperature());
+       //    Serial.print(code);
+    //  code = BTSerial.read();//엔터빼기
+     // Serial.print(code);
+    
+     BTSerial.print(" ");
+
+     BTSerial.print(Data.getLux()*10);
+     BTSerial.print(" ");
+
+   //  BTSerial.print(Data.getemptyTank());
+    // BTSerial.print(" ");
+     
+    BTSerial.println(Data.getHumidity());
+    
+    // print(" ");
+     
+    }
+    else if(code == Output_BT_Set)//------------------------------------첫번째 인자 '0' output
+    {
+      while(BTSerial.available())
+      {
+
+           Serial.print(code);
+            Serial.println(F("-->문자제거"));
+            code = BTSerial.read();
+            delay(10);
+      }
+      
+     BTSerial.print(Data.get_setLux()*10);
+     BTSerial.print(" ");
+    BTSerial.println(Data.get_setHum());
+    
+     
+    }
+    else{
+      
+     Serial.println(F("알수 없는 명령입니다."));
+      delay(10);
+     while(BTSerial.available())
+      {
+           Serial.print(code);
+            Serial.println(F("-->문자제거"));
+            code = BTSerial.read();
+            delay(10);
+      }
+    // return 0;
+    }
+   Serial.println(F("Lux: ")); Serial.println(Data.get_setLux());
+   Serial.println(F("Hum: "));Serial.println(Data.get_setHum());
+  }
+   
+   
+}
